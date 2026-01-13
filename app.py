@@ -3,7 +3,7 @@ from PIL import Image, ImageOps
 import io
 import zipfile
 
-st.title("画像軽量化ツール 🐼 (画質調整機能付き)")
+st.title("画像軽量化ツール 🐼 ")
 st.write("「画質は綺麗に残したい、でも軽くしたい」という微調整が可能です。")
 
 # --- サイドバー設定 ---
