@@ -3,7 +3,7 @@ from PIL import Image
 import io
 import zipfile
 
-st.title("画像軽量化ツール 🐼 (高画質対応版)")
+st.title("画像軽量化ツール 🐼")
 st.write("画質優先か、圧縮率優先かを選んで一括変換できます。")
 
 # --- サイドバー設定 ---
