@@ -3,28 +3,42 @@ from PIL import Image
 import io
 import zipfile
 
-st.title("画像軽量化ツール 🐼 (一括変換版)")
-st.write("複数の画像をまとめて変換・圧縮し、ZIPでダウンロードできます。")
+st.title("画像軽量化ツール 🐼 (高画質対応版)")
+st.write("画質優先か、圧縮率優先かを選んで一括変換できます。")
 
 # --- サイドバー設定 ---
 with st.container():
     st.subheader("設定")
+    
     # 変換モード
     mode = st.radio(
         "変換モード",
         (
-            "PNGのまま圧縮 (画質キープ)",
+            "PNG (画質・圧縮バランス選択)",
             "WebPに変換 (超軽量・推奨)",
             "JPEGに変換 (写真向け・背景透過なし)"
         )
     )
-    # リサイズ
-    resize_ratio = st.slider("画像の大きさ（縮尺）", 10, 100, 100, help="小さくするとさらに軽くなります。")
 
-# --- 画像アップロード (accept_multiple_files=True に変更) ---
+    # PNGの場合だけ、詳細設定を表示
+    png_quality_mode = "圧縮優先 (256色・超軽量)" # 初期値
+    if mode == "PNG (画質・圧縮バランス選択)":
+        png_quality_mode = st.radio(
+            "PNGの処理方法",
+            (
+                "画質優先 (色を減らさない・サイズ大)",
+                "圧縮優先 (256色に減色・サイズ小)"
+            ),
+            help="「画質優先」は見た目が変わりませんが、サイズはあまり減りません。「圧縮優先」は劇的に軽くなりますが、少しザラザラします。"
+        )
+
+    # リサイズ
+    resize_ratio = st.slider("画像の大きさ（縮尺）", 10, 100, 100, help="小さくすると画質を保ったまま軽くなります。")
+
+# --- 画像アップロード ---
 uploaded_files = st.file_uploader(
-    "PNG画像をアップロード（複数選択可）", 
-    type=["png"], 
+    "画像をアップロード（複数選択可）", 
+    type=["png", "jpg", "jpeg"], # 入力はJPGも許可しておきました
     accept_multiple_files=True
 )
 
@@ -37,15 +51,13 @@ if uploaded_files:
         # ZIPファイルを作るための箱を準備
         zip_buffer = io.BytesIO()
         
-        # プログレスバー（進捗状況）を表示
+        # プログレスバー
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # ZIPファイル作成開始
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             
             for i, uploaded_file in enumerate(uploaded_files):
-                # 進捗表示
                 status_text.text(f"処理中: {uploaded_file.name} ...")
                 
                 # 画像を開く
@@ -58,15 +70,22 @@ if uploaded_files:
                     new_height = int(height * resize_ratio / 100)
                     image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
                 
-                # 個別の画像データを保存するバッファ
+                # 保存用バッファ
                 img_byte_arr = io.BytesIO()
                 file_name_body = uploaded_file.name.rsplit('.', 1)[0]
                 
                 # 2. モードごとの変換処理
-                if mode == "PNGのまま圧縮 (画質キープ)":
-                    image = image.quantize(colors=256, method=2)
-                    image.save(img_byte_arr, format="PNG", optimize=True)
-                    save_name = f"{file_name_body}_compressed.png"
+                if mode == "PNG (画質・圧縮バランス選択)":
+                    if png_quality_mode == "画質優先 (色を減らさない・サイズ大)":
+                        # 色を減らさず、optimizeフラグだけで圧縮（一番きれい）
+                        # compress_level=9 (最大圧縮) をかけて時間をかけて縮める
+                        image.save(img_byte_arr, format="PNG", optimize=True, compress_level=9)
+                    else:
+                        # 以前のやり方（減色）
+                        image = image.quantize(colors=256, method=2)
+                        image.save(img_byte_arr, format="PNG", optimize=True)
+                    
+                    save_name = f"{file_name_body}_opt.png"
                     
                 elif mode == "WebPに変換 (超軽量・推奨)":
                     image.save(img_byte_arr, format="WEBP", quality=80)
@@ -86,12 +105,11 @@ if uploaded_files:
                 # ZIPに追加
                 zf.writestr(save_name, img_byte_arr.getvalue())
                 
-                # プログレスバー更新
                 progress_bar.progress((i + 1) / len(uploaded_files))
 
         status_text.text("すべての処理が完了しました！")
         
-        # ZIPダウンロードボタン
+        # ZIPダウンロード
         st.download_button(
             label="📦 まとめてダウンロード (ZIP)",
             data=zip_buffer.getvalue(),
